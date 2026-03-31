@@ -1,0 +1,329 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Navbar ─────────────────────────────────────────────────────────────────── */
+.navbar-bar {
+  flex-shrink: 0;
+  width: 100%;
+  position: relative;
+  z-index: 100;
+}
+
+.navbar-bar.collapsed > div {
+  display: none;
+}
+
+.navbar-bar .dropdown-menu {
+  z-index: 9999;
+}
+
+/* ── File name ──────────────────────────────────────────────────────────────── */
+.file-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: default;
+  font-size: 1rem;
+}
+
+/* ── Files dropdown ─────────────────────────────────────────────────────────── */
+.dropdown-menu-files {
+  min-width: 180px;
+  font-size: 1rem;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  gap: 4px;
+}
+
+.file-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.file-item-name:hover {
+  text-decoration: underline;
+}
+
+.file-item-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.file-item:hover .file-item-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .file-item-actions {
+    opacity: 1;
+  }
+}
+
+.file-item-btn {
+  background: none;
+  border: none;
+  padding: 1px 4px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  color: var(--bs-secondary-color);
+  border-radius: 3px;
+  line-height: 1.4;
+}
+
+.file-item-btn:hover {
+  background: var(--bs-secondary-bg);
+}
+
+.file-item-btn.del:hover {
+  color: var(--bs-danger);
+}
+
+.file-item.active-file .file-item-name {
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+/* ── Color picker ───────────────────────────────────────────────────────────── */
+.color-square {
+  width: 31px;
+  height: 31px;
+  padding: 2px;
+  border-radius: 4px;
+  border: 1px solid var(--bs-border-color);
+  cursor: pointer;
+  flex-shrink: 0;
+  background-color: var(--bs-body-bg);
+}
+
+/* ── Floating expand ────────────────────────────────────────────────────────── */
+.floating-expand {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  z-index: 1030;
+  display: none;
+}
+
+.floating-expand.visible {
+  display: block;
+}
+
+.floating-btn {
+  background-color: var(--bs-body-bg) !important;
+}
+
+/* ── Editor ─────────────────────────────────────────────────────────────────── */
+.editor-container {
+  flex: 1;
+  overflow: auto;
+}
+
+.editor {
+  min-height: 100%;
+  outline: none;
+  line-height: 1.6;
+}
+
+.editor:focus {
+  box-shadow: none;
+}
+
+/* ── Scrollbar ──────────────────────────────────────────────────────────────── */
+.editor-container::-webkit-scrollbar { width: 8px; }
+.editor-container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+.editor-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+.editor-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+[data-bs-theme="dark"] .editor-container::-webkit-scrollbar-track { background: #2c2c2c; }
+[data-bs-theme="dark"] .editor-container::-webkit-scrollbar-thumb { background: #555; }
+[data-bs-theme="dark"] .editor-container::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .editor { padding: 1rem !important; }
+  .file-name { max-width: 80px; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   IMAGE BLOCK
+═══════════════════════════════════════════════════════════════════════════════ */
+.img-block {
+  display: inline-block;
+  position: relative;
+  line-height: 0;
+  vertical-align: bottom;
+  max-width: 100%;
+  user-select: none;
+}
+
+.img-block img {
+  display: block;
+  max-width: 100%;
+  cursor: default;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Selected state */
+.img-block--selected img {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 1px;
+}
+
+.img-block--selected .img-handle,
+.img-block--selected .img-toolbar,
+.img-block[data-cropping="true"] .img-toolbar {
+  display: flex !important;
+}
+
+/* ── Resize handles (normal) ────────────────────────────────────────────────── */
+.img-handle {
+  display: none;
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  background: var(--bs-primary);
+  border: 1.5px solid #fff;
+  border-radius: 2px;
+  z-index: 2000;
+}
+
+.img-handle--nw { top: -5px;    left: -5px;    cursor: nw-resize; }
+.img-handle--ne { top: -5px;    right: -5px;   cursor: ne-resize; }
+.img-handle--sw { bottom: -5px; left: -5px;    cursor: sw-resize; }
+.img-handle--se { bottom: -5px; right: -5px;   cursor: se-resize; }
+
+/* ── Image toolbar ───────────────────────────────────────────────────────────── */
+.img-toolbar {
+  display: none;
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 5px;
+  padding: 2px 4px;
+  gap: 2px;
+  z-index: 2010;
+  box-shadow: 0 1px 6px rgba(0,0,0,.15);
+  white-space: nowrap;
+}
+
+.img-toolbar.img-toolbar--bottom {
+  top: auto;
+  bottom: -35px;
+}
+
+.img-toolbar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  border-radius: 3px;
+  color: var(--bs-body-color);
+  line-height: 1.4;
+}
+
+.img-toolbar-btn:hover {
+  background: var(--bs-secondary-bg);
+}
+
+.btn-locked {
+  color: var(--bs-primary) !important;
+}
+
+.img-toolbar-btn--confirm {
+  color: var(--bs-success);
+}
+
+.img-toolbar-btn--confirm:hover {
+  background: var(--bs-success-bg-subtle);
+}
+
+.img-toolbar-btn--danger:hover {
+  color: var(--bs-danger);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   IN-PLACE CROP UI
+   ═══════════════════════════════════════════════════════════════════════════════ */
+
+.img-block[data-cropping="true"] img {
+  opacity: 0.4;
+}
+
+/* Hide normal resize handles when cropping */
+.img-block[data-cropping="true"] .img-handle {
+  display: none !important;
+}
+
+.img-crop-box {
+  display: none;
+  position: absolute;
+  border: 2px solid var(--bs-primary);
+  /* Tint area outside selection */
+  box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.4);
+  z-index: 2000;
+  box-sizing: border-box;
+  cursor: move;
+  pointer-events: auto;
+}
+
+.img-block[data-cropping="true"] .img-crop-box {
+  display: block;
+}
+
+.crop-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--bs-primary);
+  border: 1.5px solid #fff;
+  border-radius: 2px;
+  z-index: 2005;
+}
+
+/* Position handles relative to the 2px border of .img-crop-box */
+.crop-handle--nw { top: -6px;    left: -6px;    cursor: nw-resize; }
+.crop-handle--ne { top: -6px;    right: -6px;   cursor: ne-resize; }
+.crop-handle--sw { bottom: -6px; left: -6px;    cursor: sw-resize; }
+.crop-handle--se { bottom: -6px; right: -6px;   cursor: se-resize; }
+.crop-handle--n  { top: -6px;    left: 50%;     cursor: n-resize;  transform: translateX(-50%); }
+.crop-handle--s  { bottom: -6px; left: 50%;     cursor: s-resize;  transform: translateX(-50%); }
+.crop-handle--e  { top: 50%;     right: -6px;   cursor: e-resize;  transform: translateY(-50%); }
+.crop-handle--w  { top: 50%;     left: -6px;    cursor: w-resize;  transform: translateY(-50%); }
+
+.crop-btn-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
