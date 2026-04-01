@@ -11,5 +11,6 @@
 	"maxWidth": 1200,
 	"maxHeight": 1000,
 	"requestHandlers": [],
-	"activators": []
+	"activators": [],
+	"permissions": ""
 }
