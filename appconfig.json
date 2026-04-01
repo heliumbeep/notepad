@@ -3,7 +3,7 @@
 	"description": "Text editor",
 	"appUrl": "https://heliumbeep.github.io/notepad/",
 	"configUrl": "https://heliumbeep.github.io/notepad/appconfig.json",
-	"iconUrl": "./icon.png",
+	"iconUrl": "https://heliumbeep.github.io/notepad/icon.png",
 	"defaultWidth": 400,
 	"defaultHeight": 500,
 	"minWidth": 300,
@@ -12,5 +12,5 @@
 	"maxHeight": 1000,
 	"requestHandlers": [],
 	"activators": [],
-	"permissions": ""
+	"permissions": []
 }
