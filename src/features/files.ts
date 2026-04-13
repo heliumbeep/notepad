@@ -1,14 +1,26 @@
 import { Modal } from 'bootstrap';
 import {
   generateId,
-  getFile,
   getFilesIndex,
-  saveFile,
   saveFilesIndex,
-  deleteFile,
+  setLastOpenedFileId,
 } from '../lib/storage';
-import { getEditorHTML, setEditorHTML, markSaved, isEditorDirty, showStatusMessage, updateCharCount, triggerAutoSave } from './editor';
+import {
+  dbGetFile,
+  dbSaveFile,
+  dbDeleteFile,
+  type SaveResult,
+} from '../lib/db';
+import {
+  getEditorHTML,
+  setEditorHTML,
+  markSaved,
+  showStatusMessage,
+  updateCharCount,
+  triggerAutoSave,
+} from './editor';
 import { reinitImages } from './images';
+import { showStorageError, updateStorageIndicator } from './notify';
 
 let currentFileId: string | null = null;
 let renamingFileId: string | null = null;
@@ -63,16 +75,16 @@ export function initFiles(): void {
 
   document.getElementById('clearBtn')!.addEventListener('click', () => bsConfirmModal!.show());
 
-  document.getElementById('saveBtn')!.addEventListener('click', () => {
-    saveCurrentFile();
+  document.getElementById('saveBtn')!.addEventListener('click', async () => {
+    await saveCurrentFile();
     showStatusMessage('Saved');
+    // Wait 1s for IndexedDB to flush before querying storage estimate
+    setTimeout(updateStorageIndicator, 1000);
   });
 
-  window.addEventListener('beforeunload', () => {
-    if (isEditorDirty()) saveCurrentFile();
-  });
+  // NOTE: No beforeunload save — IndexedDB is async and can't complete before unload.
+  // The 500ms autosave (in editor.ts) covers this.
 }
-
 
 export function getCurrentFileId(): string | null {
   return currentFileId;
@@ -80,44 +92,65 @@ export function getCurrentFileId(): string | null {
 
 // ─── CRUD ─────────────────────────────────────────────────────────────────────
 
-export function createNewFile(): void {
-  if (currentFileId) saveCurrentFile();
+export async function createNewFile(): Promise<void> {
+  await saveCurrentFile();
   const id = generateId();
   const name = 'Untitled';
-  saveFile(id, name, '');
+  await dbSaveFile(id, name, '');
   const index = getFilesIndex();
   index.push({ id, name });
   saveFilesIndex(index);
-  loadFileById(id);
+  await loadFileById(id);
   renderFilesList();
   openRenameModal(id);
 }
 
-export function loadFileById(id: string): void {
-  if (currentFileId) saveCurrentFile();
-  const file = getFile(id);
+export async function loadFileById(id: string): Promise<void> {
+  if (currentFileId && currentFileId !== id) await saveCurrentFile();
+
+  const file = await dbGetFile(id);
   currentFileId = id;
-  setEditorHTML(file.html ?? '');
-  updateFileNameDisplay(file.name);
+  setLastOpenedFileId(id);
+  setEditorHTML(file?.html ?? '');
+  updateFileNameDisplay(file?.name ?? 'Untitled');
   showStatusMessage('File loaded');
-  setTimeout(() => reinitImages(document.getElementById('editor')!), 0);
+
+  reinitImages(document.getElementById('editor')!);
+  markSaved();
+  renderFilesList();
+  // Refresh storage indicator after load
+  updateStorageIndicator();
 }
 
-export function saveCurrentFile(): void {
+export async function saveCurrentFile(): Promise<void> {
   if (!currentFileId) return;
-  const file = getFile(currentFileId);
-  saveFile(currentFileId, file.name, getEditorHTML());
-  markSaved();
+
+  const content = getEditorHTML();
   const index = getFilesIndex();
   const entry = index.find((f) => f.id === currentFileId);
-  if (entry) entry.name = file.name;
+  const name = entry?.name ?? 'Untitled';
+
+  const result: SaveResult = await dbSaveFile(currentFileId, name, content);
+
+  if (!result.ok) {
+    showStatusMessage('Save failed!');
+    const saveStatusEl = document.getElementById('saveStatus');
+    if (saveStatusEl) {
+      saveStatusEl.innerHTML = '<i class="fas fa-exclamation-triangle text-danger"></i>';
+      saveStatusEl.title = result.message;
+    }
+    showStorageError(result.message);
+    return;
+  }
+
+  markSaved();
   saveFilesIndex(index);
 }
 
-export function renameFile(id: string, newName: string): void {
+export async function renameFile(id: string, newName: string): Promise<void> {
   const trimmed = newName.trim() || 'Untitled';
-  const file = getFile(id);
-  saveFile(id, trimmed, file.html);
+  const file = await dbGetFile(id);
+  await dbSaveFile(id, trimmed, file?.html ?? '');
   const index = getFilesIndex();
   const entry = index.find((f) => f.id === id);
   if (entry) entry.name = trimmed;
@@ -126,21 +159,22 @@ export function renameFile(id: string, newName: string): void {
   renderFilesList();
 }
 
-function doDeleteFile(id: string): void {
+async function doDeleteFile(id: string): Promise<void> {
   const index = getFilesIndex();
   if (index.length <= 1) {
     const editor = document.getElementById('editor')!;
     editor.innerHTML = '';
-    saveFile(id, getFile(id).name, '');
+    await dbSaveFile(id, index[0]?.name ?? 'Untitled', '');
     markSaved();
     updateCharCount();
     showStatusMessage('Content cleared');
     return;
   }
-  deleteFile(id);
+  await dbDeleteFile(id);
+  saveFilesIndex(index.filter((f) => f.id !== id));
   if (id === currentFileId) {
     const remaining = getFilesIndex();
-    if (remaining.length > 0) loadFileById(remaining[0].id);
+    if (remaining.length > 0) await loadFileById(remaining[0].id);
   }
   renderFilesList();
 }
@@ -155,9 +189,10 @@ function updateFileNameDisplay(name: string): void {
 
 function openRenameModal(id: string): void {
   renamingFileId = id;
-  const file = getFile(id);
+  const index = getFilesIndex();
+  const entry = index.find((f) => f.id === id);
   const input = document.getElementById('renameInput') as HTMLInputElement;
-  input.value = file.name === 'Untitled' ? '' : file.name;
+  input.value = entry?.name === 'Untitled' ? '' : (entry?.name ?? '');
   bsRenameModal!.show();
   setTimeout(() => { input.select(); input.focus(); }, 300);
 }
@@ -184,7 +219,7 @@ export function renderFilesList(): void {
     nameSpan.addEventListener('click', () => {
       if (id !== currentFileId) loadFileById(id);
       const dd = (window as any).bootstrap?.Dropdown?.getInstance(
-        document.getElementById('filesDropdownBtn')
+        document.getElementById('filesDropdownBtn'),
       );
       dd?.hide();
     });

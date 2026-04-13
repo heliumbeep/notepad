@@ -19,20 +19,27 @@ import {
   renderFilesList,
 } from './features/files';
 import { initImportExport } from './features/importExport';
-import { migrateLegacy, getFilesIndex, generateId, saveFile, saveFilesIndex } from './lib/storage';
+import {
+  migrateLegacy,
+  getFilesIndex,
+  generateId,
+  saveFilesIndex,
+  getLastOpenedFileId,
+} from './lib/storage';
+import { dbMigrateFromLocalStorage, dbSaveFile } from './lib/db';
+import { updateStorageIndicator } from './features/notify';
 
 // Make bootstrap available globally for dropdown interop used in files.ts
 (window as any).bootstrap = bootstrap;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
-function boot(): void {
+async function boot(): Promise<void> {
   loadTheme();
   loadNavbarState();
 
   // Editor (must come before files so autosave callback is ready)
   initEditor(saveCurrentFile);
-  loadSpellcheck();
 
   // Files
   initFiles();
@@ -44,20 +51,40 @@ function boot(): void {
   // Import / Export
   initImportExport();
 
-  // Migrate legacy data then load initial file
+  // ── Migration ──────────────────────────────────────────────────────────────
+  // 1. Handle the very old single-note format
   migrateLegacy();
+  // 2. Migrate any multi-file localStorage data → IndexedDB (one-time)
+  await dbMigrateFromLocalStorage();
+
+  // ── Load initial file ──────────────────────────────────────────────────────
   const index = getFilesIndex();
-  if (index.length > 0) {
-    loadFileById(index[0].id);
+  const lastId = getLastOpenedFileId();
+  const lastFileExists = lastId && index.some((f) => f.id === lastId);
+
+  if (lastFileExists) {
+    await loadFileById(lastId!);
+  } else if (index.length > 0) {
+    await loadFileById(index[0].id);
   } else {
+    // No files at all — create the first one
     const id = generateId();
-    saveFile(id, 'Untitled', '');
+    await dbSaveFile(id, 'Untitled', '');
     saveFilesIndex([{ id, name: 'Untitled' }]);
-    loadFileById(id);
+    await loadFileById(id);
   }
 
   renderFilesList();
   updateCharCount();
+
+  // Load spellcheck AFTER file is loaded to avoid race conditions
+  loadSpellcheck();
+
+  // Initial storage indicator
+  updateStorageIndicator();
+
+  // Refresh storage indicator every 30 seconds
+  setInterval(updateStorageIndicator, 30_000);
 
   // ─── Toolbar event listeners ────────────────────────────────────────────────
   document.getElementById('boldBtn')!.addEventListener('click', () => format('bold'));
@@ -66,11 +93,11 @@ function boot(): void {
   document.getElementById('spellBtn')!.addEventListener('click', toggleSpellcheck);
 
   (document.getElementById('fontSize') as HTMLSelectElement).addEventListener('change', (e) =>
-    format('fontSize', (e.target as HTMLSelectElement).value)
+    format('fontSize', (e.target as HTMLSelectElement).value),
   );
 
   (document.getElementById('textColor') as HTMLInputElement).addEventListener('input', (e) =>
-    format('foreColor', (e.target as HTMLInputElement).value)
+    format('foreColor', (e.target as HTMLInputElement).value),
   );
 
   document.getElementById('themeBtn')!.addEventListener('click', toggleTheme);

@@ -1,16 +1,18 @@
-import type { ExportData, NoteFile } from '../types';
-import { getFile, saveFile, getFilesIndex, saveFilesIndex, generateId } from '../lib/storage';
+import type { ExportData } from '../types';
+import { getFilesIndex, saveFilesIndex, generateId } from '../lib/storage';
+import { dbGetFile, dbSaveFile } from '../lib/db';
 import { getCurrentFileId, loadFileById, renderFilesList, saveCurrentFile } from './files';
 import { showStatusMessage } from './editor';
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
-export function exportCurrentFile(): void {
+export async function exportCurrentFile(): Promise<void> {
   const id = getCurrentFileId();
   if (!id) return;
 
-  saveCurrentFile(); // Ensure latest content is stored
-  const file: NoteFile = getFile(id);
+  await saveCurrentFile(); // Ensure latest content is stored
+  const file = await dbGetFile(id);
+  if (!file) return;
 
   const payload: ExportData = {
     version: 1,
@@ -34,7 +36,7 @@ export function exportCurrentFile(): void {
 
 export function importFile(f: File): void {
   const reader = new FileReader();
-  reader.onload = (ev) => {
+  reader.onload = async (ev) => {
     try {
       const raw = ev.target?.result as string;
       const data: ExportData = JSON.parse(raw);
@@ -48,12 +50,12 @@ export function importFile(f: File): void {
       const id = generateId();
       const safeName = name?.trim() || 'Imported';
 
-      saveFile(id, safeName, html);
+      await dbSaveFile(id, safeName, html);
       const index = getFilesIndex();
       index.push({ id, name: safeName });
       saveFilesIndex(index);
 
-      loadFileById(id);
+      await loadFileById(id);
       renderFilesList();
       showStatusMessage('Imported');
     } catch {

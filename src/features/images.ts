@@ -1,4 +1,5 @@
 import { triggerAutoSave } from './editor';
+import { updateStorageIndicator } from './notify';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -22,6 +23,9 @@ export function initImagePaste(editor: HTMLElement): void {
           if (typeof ev.target?.result === 'string') {
             insertResizableImage(ev.target.result);
             triggerAutoSave();
+            // Update storage indicator immediately after paste
+            // (the autosave will persist to IDB, indicator refreshes on save too)
+            updateStorageIndicator();
           }
         };
         reader.readAsDataURL(blob);
